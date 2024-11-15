@@ -1,0 +1,37 @@
+AksApps 
+|take 100
+|where Env == "uat"
+| where  AKSContainerName has "vn-document-scheduler"
+ and Message matches regex "Casrcm54vnService.*batch=[E|D]?" 
+| extend LastEventDate =  bin(AgentTimeGenerated, 1d)
+| parse Message with regex "(InProgress|Finish)" JobStatus "batch=(\\w*)" Batch "times=(\\w*)" Times "duration\\(ms\\)=(\\w*)" Duration "totalCasNum=(\\w*)" TotalCasNum "totalDistinctNum=(\\w*)" TotalDistinctNum "duplicated=(\\w*)" Duplicated
+|extend Progress2 = round(((toreal(toint(TotalCasNum)/2797642))*100),2)
+|extend Duration2 = round(toreal(toint(Duration)/(1000*60*60)),1)
+|extend Content = (strcat("Status: ", JobStatus, tostring(Progress2), '%', '<br>', '<br>', '<br>', 'Batch: ', tostring(Batch), '<br>', 'Duration: ', tostring(Duration2), ' hours' '/ Est.Remaining', tostring(round(Duration2 * ((100 - toint(Progress2)/ toint(Progress2))))), ' hours' '<br>' 'Process: ', tostring(TotalCasNum), ' / Remaining:', tostring(2797642 - toint(TotalCasNum)), '<br>' 'New: ', tostring(toint(TotalDistinctNum) - toint(Duplicated)), ', Update: ', tostring(Duplicated), ', Ignore: ', tostring(toint(TotalCasNum) - toint(TotalDistinctNum))))
+| summarize  by LastEventDate, JobStatus, Batch, Times, Duration, TotalCasNum, TotalDistinctNum, Duplicated, Progress2, Duration2, FinalString
+// project  JobStatus = extract("(InProgress|Finish)", 1, Message),
+//    Batch = extract("batch=(\\w*)", 1, Message),
+//    Duration =extract("times=(\\w*)", 1, Message),
+//    TotalCasNum = extract("totalCasNum=(\\w*)", 1, Message),
+ //   TotalDistinctNum = extract("totalDistinctNum=(\\w*)", 1, Message),
+ //   Duplicated = extract("duplicated=(\\w*)", 1, Message);
+//  Progress2 = round(((toreal(TotalCasNum/2797642))*100),2);
+//Duplicated = Message matches regex 
+   // Progress2 = Message matches regex 
+  //  Duration2 = Message matches regex 
+  //|take 100
+
+,'Status: ' + jobstatus + '(' + progress2 + '%)'
+ + '<br>' + 'Last Update: ' + formatdate(lastEventDate, 'HH:mm:ss')
+ + '<br>'
+ + '<br>' + 'Batch: ' + batch
+ + '<br>' + 'Duration: ' + duration2 + ' hours'
+ + ' / Est. Remaining: ' + round(duration2 * ((100-progress2)/progress2), 1) + ' hours'
+ + '<br>' + 'Process: ' + totalCasNum
+ + ' / Remaining: ' + (2797642 - int(totalCasNum))
+ + '<br>' + 'New: ' + (int(totalDistinctNum) - int(duplicated))
+ + ', Update: ' + duplicated
+ + ', Ignore: ' + (int(totalCasNum) - int(totalDistinctNum))
+ as content
+
+//16:31:52.746 [task-4] INFO c.m.a.service.impl.Casrcm54vnService - Ecard (CASRCM54VN) - InProgress - Handle batch=E20240906 in duration(ms)=11810968 times=547, totalCasNum=1094000, totalDistinctNum=1094000, duplicated=0
