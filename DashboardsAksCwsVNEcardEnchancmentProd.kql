@@ -1,1 +1,13 @@
-"datasource": "from my.synthesis.apps.logs\r\nwhere program -> \"aks-sea-emm-prd\"\r\n, aks_namespace_name -> \"ns-vnm-document-system\"\r\n, matches(aks_container_name, \"vn-document-scheduler.*\")\r\nwhere matches(body, \"java.*xception\")\r\ngroup every 1d by aks_container_name\r\nselect count(aks_container_name) as error_count\r\n, last(body) as lastError\r\n, last(eventdate) as lastEventDate\r\n\r\n//12:51:00.452 [main] INFO com.manulife.ap.Application - Started Application in 21.294 seconds (process running for 28.422)\r\n",
+AksApps
+| where TimeGenerated between (_startTime .. _endTime)
+//| where Env contains "prd"
+| where  AKSContainerName has "vn-document-scheduler"   
+| where  Message matches regex "Casrcm54vnService.*batch=(E|D)?" 
+| parse kind=regex Message with "^.* Ecard [^-]+- " JobStatus " - "
+| parse kind=regex  Message with * "duration\\(ms\\)=" duration:real " "
+| parse-kv Message as (batch:string, times:int, totalCasNum:real, totalDistinctNum:int, duplicated:int, count:int)
+| where batch != "null"
+|summarize by bin(TimeGenerated, 1h), batch, times, totalCasNum, totalDistinctNum, duplicated, count, JobStatus, duration
+| extend Progress2 = round((totalCasNum/(5000)*100),2)
+| extend Duration2 = round(duration/(1000*60*60),2)
+| extend  Content = strcat(  "Status: ", tostring(JobStatus), " ", tostring(Progress2), '%\n\n',   '  \n\n', '\n\n', '\n\n',   'Batch: ', tostring(batch),   '\n\n',   'Duration: ', tostring(Duration2), ' hours' '/ Est.Remaining', tostring(round(Duration2 * ((100 - toint(Progress2)/ toint(Progress2))))), ' hours'   '\n\n',   'Process: ', tostring(totalCasNum), ' / Remaining:', tostring(2797642 - toint(totalCasNum)),   '\n\n', 'New: ', tostring(toint(totalDistinctNum) - toint(duplicated)), ', Update: ', tostring(duplicated), ', Ignore: ', tostring(toint(totalCasNum) - toint(totalDistinctNum)))
